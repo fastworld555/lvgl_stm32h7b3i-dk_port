@@ -6,6 +6,7 @@
 /*********************
  *      INCLUDES
  *********************/
+#include "../../Core/Inc/main.h"
 #include "../../lv_conf.h"
 #include "../../lvgl/lvgl.h"
 #include <string.h>
@@ -17,6 +18,7 @@
 #include "../../Drivers/BSP/STM32H7B3I-DK/stm32h7b3i_discovery_sdram.h"
 #include "../../Drivers/BSP/STM32H7B3I-DK/stm32h7b3i_discovery_ts.h"
 #include "../../Drivers/BSP/Components/rk043fn48h/rk043fn48h.h"
+
 
 /*********************
  *      DEFINES
@@ -78,7 +80,8 @@ static void DMA_TransferError(DMA_HandleTypeDef *han);
  **********************/
 static LTDC_HandleTypeDef  hLtdcHandler;
 static lv_disp_drv_t disp_drv;
-
+static uint32_t Instance;  //Added 31.10.21
+static uint32_t BankMapConfig;  //Added 31.10.21
 #if LV_COLOR_DEPTH == 16
 typedef uint16_t uintpixel_t;
 #elif LV_COLOR_DEPTH == 24 || LV_COLOR_DEPTH == 32
@@ -223,67 +226,42 @@ static void ex_disp_clean_dcache(lv_disp_drv_t *drv)
  */
 static void LCD_MspInit(void)
 {
-    GPIO_InitTypeDef gpio_init_structure;
-
+    //GPIO_InitTypeDef gpio_init_structure;
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
     /* Enable the LTDC and DMA2D clocks */
     __HAL_RCC_LTDC_CLK_ENABLE();
     __HAL_RCC_DMA2D_CLK_ENABLE();
-    /* Enable GPIOs clock */
-    __HAL_RCC_GPIOE_CLK_ENABLE();
-    __HAL_RCC_GPIOG_CLK_ENABLE();
-    __HAL_RCC_GPIOI_CLK_ENABLE();
-    __HAL_RCC_GPIOJ_CLK_ENABLE();
+    /* Peripheral clock enable */
+    __HAL_RCC_LTDC_CLK_ENABLE();
+
     __HAL_RCC_GPIOK_CLK_ENABLE();
-    LCD_DISP_GPIO_CLK_ENABLE();
-    LCD_BL_CTRL_GPIO_CLK_ENABLE();
+    __HAL_RCC_GPIOJ_CLK_ENABLE();
+    __HAL_RCC_GPIOI_CLK_ENABLE();
+    /**LTDC GPIO Configuration*/
+    GPIO_InitStruct.Pin = LCD_B6_Pin|LCD_B7_Pin|LCD_B4_Pin|LCD_B5_Pin
+                         |LCD_DE_Pin|LCD_G7_Pin|LCD_G6_Pin|LCD_G5_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF14_LTDC;
+    HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
 
-    /*** LTDC Pins configuration ***/
-    /* GPIOE configuration */
-    gpio_init_structure.Pin       = GPIO_PIN_4;
-    gpio_init_structure.Mode      = GPIO_MODE_AF_PP;
-    gpio_init_structure.Pull      = GPIO_NOPULL;
-    gpio_init_structure.Speed     = GPIO_SPEED_FAST;
-    gpio_init_structure.Alternate = GPIO_AF14_LTDC;
-    HAL_GPIO_Init(GPIOE, &gpio_init_structure);
+    GPIO_InitStruct.Pin = LCD_B3_Pin|LCD_B2_Pin|LCD_B1_Pin|LCD_B0_Pin
+                         |LCD_G4_Pin|LCD_G3_Pin|LCD_G2_Pin|LCD_G1_Pin
+                         |LCD_R7_Pin|LCD_G0_Pin|LCD_R1_Pin|LCD_R6_Pin
+                         |LCD_R2_Pin|LCD_R5_Pin|LCD_R3_Pin|LCD_R4_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF14_LTDC;
+    HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
-    /* GPIOG configuration */
-    gpio_init_structure.Pin       = GPIO_PIN_12;
-    gpio_init_structure.Mode      = GPIO_MODE_AF_PP;
-    gpio_init_structure.Alternate = GPIO_AF9_LTDC;
-    HAL_GPIO_Init(GPIOG, &gpio_init_structure);
-
-    /* GPIOI LTDC alternate configuration */
-    gpio_init_structure.Pin       = GPIO_PIN_9 | GPIO_PIN_10 | \
-            GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
-    gpio_init_structure.Mode      = GPIO_MODE_AF_PP;
-    gpio_init_structure.Alternate = GPIO_AF14_LTDC;
-    HAL_GPIO_Init(GPIOI, &gpio_init_structure);
-
-    /* GPIOJ configuration */
-    gpio_init_structure.Pin       = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | \
-            GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 | \
-            GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | \
-            GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
-    gpio_init_structure.Mode      = GPIO_MODE_AF_PP;
-    gpio_init_structure.Alternate = GPIO_AF14_LTDC;
-    HAL_GPIO_Init(GPIOJ, &gpio_init_structure);
-
-    /* GPIOK configuration */
-    gpio_init_structure.Pin       = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_4 | \
-            GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
-    gpio_init_structure.Mode      = GPIO_MODE_AF_PP;
-    gpio_init_structure.Alternate = GPIO_AF14_LTDC;
-    HAL_GPIO_Init(GPIOK, &gpio_init_structure);
-
-    /* LCD_DISP GPIO configuration */
-    gpio_init_structure.Pin       = LCD_DISP_PIN;     /* LCD_DISP pin has to be manually controlled */
-    gpio_init_structure.Mode      = GPIO_MODE_OUTPUT_PP;
-    HAL_GPIO_Init(LCD_DISP_GPIO_PORT, &gpio_init_structure);
-
-    /* LCD_BL_CTRL GPIO configuration */
-    gpio_init_structure.Pin       = LCD_BL_CTRL_PIN;  /* LCD_BL_CTRL pin has to be manually controlled */
-    gpio_init_structure.Mode      = GPIO_MODE_OUTPUT_PP;
-    HAL_GPIO_Init(LCD_BL_CTRL_GPIO_PORT, &gpio_init_structure);
+    GPIO_InitStruct.Pin = LCD_HSYNC_Pin|LCD_CLK_Pin|LCD_VSYNC_Pin|LCD_R0_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF14_LTDC;
+    HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 }
 
 /**
@@ -291,18 +269,22 @@ static void LCD_MspInit(void)
  */
 static void LCD_ClockConfig(void)
 {
-    static RCC_PeriphCLKInitTypeDef  periph_clk_init_struct;
+	 GPIO_InitTypeDef GPIO_InitStruct = {0};
+	  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+	  /* USER CODE BEGIN LTDC_MspInit 0 */
 
-    /* RK043FN48H LCD clock configuration */
-    /* PLLSAI_VCO Input = HSE_VALUE/PLL_M = 1 Mhz */
-    /* PLLSAI_VCO Output = PLLSAI_VCO Input * PLLSAIN = 192 Mhz */
-    /* PLLLCDCLK = PLLSAI_VCO Output/PLLSAIR = 192/5 = 38.4 Mhz */
-    /* LTDC clock frequency = PLLLCDCLK / LTDC_PLLSAI_DIVR_4 = 38.4/4 = 9.6Mhz */
-    periph_clk_init_struct.PeriphClockSelection = RCC_PERIPHCLK_LTDC;
-    periph_clk_init_struct.PLLSAI.PLLSAIN = 192;
-    periph_clk_init_struct.PLLSAI.PLLSAIR = RK043FN48H_FREQUENCY_DIVIDER;
-    periph_clk_init_struct.PLLSAIDivR = RCC_PLLSAIDIVR_4;
-    HAL_RCCEx_PeriphCLKConfig(&periph_clk_init_struct);
+	  /* USER CODE END LTDC_MspInit 0 */
+	  /** Initializes the peripherals clock
+	  */
+	    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC;
+	    PeriphClkInitStruct.PLL3.PLL3M = 24;
+	    PeriphClkInitStruct.PLL3.PLL3N = 192;
+	    PeriphClkInitStruct.PLL3.PLL3P = 17;
+	    PeriphClkInitStruct.PLL3.PLL3Q = 2;
+	    PeriphClkInitStruct.PLL3.PLL3R = 2;
+	    PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_0;
+	    PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
+	    PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
 }
 
 /**
@@ -356,8 +338,8 @@ static uint8_t LCD_Init(void)
     /* Assert backlight LCD_BL_CTRL pin */
     HAL_GPIO_WritePin(LCD_BL_CTRL_GPIO_PORT, LCD_BL_CTRL_PIN, GPIO_PIN_SET);
 
-    BSP_SDRAM_Init();
-    HAL_EnableFMCMemorySwapping();
+    BSP_SDRAM_Init(Instance);  //Added "Instance" 31.10.21
+    HAL_SetFMCMemorySwappingConfig(BankMapConfig); //HAL_EnableFMCMemorySwapping();
 
     uint32_t i;
     for(i = 0; i < (TFT_HOR_RES * TFT_VER_RES) ; i++)
@@ -413,7 +395,7 @@ static void DMA_Config(void)
     __HAL_RCC_DMA2_CLK_ENABLE();
 
     /*##-2- Select the DMA functional Parameters ###############################*/
-    DmaHandle.Init.Channel = CPY_BUF_DMA_CHANNEL;                   /* DMA_CHANNEL_0                    */
+    DmaHandle.Init.Request = CPY_BUF_DMA_CHANNEL;  //DmaHandle.Init.Channel = CPY_BUF_DMA_CHANNEL;                   /* DMA_CHANNEL_0                    */
     DmaHandle.Init.Direction = DMA_MEMORY_TO_MEMORY;                /* M2M transfer mode                */
     DmaHandle.Init.PeriphInc = DMA_PINC_ENABLE;                     /* Peripheral increment mode Enable */
     DmaHandle.Init.MemInc = DMA_MINC_ENABLE;                        /* Memory increment mode Enable     */

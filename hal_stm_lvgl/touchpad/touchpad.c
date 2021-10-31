@@ -6,6 +6,7 @@
 /*********************
  *      INCLUDES
  *********************/
+#include "main.h"
 #include "../tft/tft.h"
 #include "../../lvgl/src/hal/lv_hal.h"
 
@@ -28,7 +29,8 @@ static void touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data);
 /**********************
  *  STATIC VARIABLES
  **********************/
-static TS_StateTypeDef  TS_State;
+static TS_State_t  TS_State;
+static uint32_t Instance=0;
 
 /**********************
  *      MACROS
@@ -69,12 +71,12 @@ static void touchpad_read(lv_indev_drv_t *indev, lv_indev_data_t *data)
     /* Read your touchpad */
     static int16_t last_x = 0;
     static int16_t last_y = 0;
-    BSP_LED_Toggle(LED3);
+    //BSP_LED_Toggle(LED3);
 
-    BSP_TS_GetState(&TS_State);
-    if(TS_State.touchDetected) {
-            data->point.x = TS_State.touchX[0];
-            data->point.y = TS_State.touchY[0];
+    BSP_TS_GetState(Instance, &TS_State);
+    if(TS_State.TouchDetected) {
+    		data->point.x = TS_State.TouchX;  //data->point.x = TS_State.TouchX[0];
+    		data->point.y = TS_State.TouchY;  //data->point.y = TS_State.TouchY[0];
             last_x = data->point.x;
             last_y = data->point.y;
             data->state = LV_INDEV_STATE_PRESSED;
