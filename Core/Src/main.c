@@ -132,9 +132,9 @@ int main(void)
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
   /* Enable I-Cache */
-  //SCB_EnableICache();
+  SCB_EnableICache();
   /* Enable D-Cache */
-  //SCB_EnableDCache();
+  SCB_EnableDCache();
   lv_init();
   tft_init();
   touchpad_init();
